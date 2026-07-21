@@ -90,15 +90,15 @@ class PlayerFocus extends StatelessWidget {
   void _changeSpeed({required bool isIncrease}) {
     final tenths = (plPlayerController.playbackSpeed * 10).round();
     final newTenths = isIncrease
-        ? (tenths + 1).clamp(1, 160)
-        : (tenths - 1).clamp(1, 160);
+        ? (tenths + 1).clamp(1, 60)
+        : (tenths - 1).clamp(1, 60);
     final newSpeed = newTenths / 10.0;
     plPlayerController
       ..setPlaybackSpeed(newSpeed)
       ..showKeyboardSpeedToast(newSpeed);
   }
 
-  /// Z/C 长按：按下步进一次，300ms 延迟后持续步进（每 100ms），松开取消
+  /// X/C 长按：按下步进一次，300ms 延迟后持续步进（每 100ms），松开取消
   void _updateSpeed(KeyEvent event, {required bool isIncrease}) {
     if (event is KeyDownEvent) {
       if (hasPlayer) {
@@ -154,27 +154,20 @@ class PlayerFocus extends StatelessWidget {
       return true;
     }
 
-    // Z/C 倍速快捷键（Z 减速、C 加速），支持长按持续调节（每 100ms 步进 0.1x）
-    final isKeyZ = key == LogicalKeyboardKey.keyZ;
-    if (isKeyZ || key == LogicalKeyboardKey.keyC) {
-      if (!plPlayerController.isLive && hasPlayer) {
-        _updateSpeed(event, isIncrease: key == LogicalKeyboardKey.keyC);
+    // Z：恢复 1.0x 倍速
+    if (key == LogicalKeyboardKey.keyZ) {
+      if (event is KeyDownEvent && !plPlayerController.isLive && hasPlayer) {
+        plPlayerController
+          ..setPlaybackSpeed(1.0)
+          ..showKeyboardSpeedToast(1.0);
       }
       return true;
     }
 
-    // X：切换倍速。当前速度≠1.0 切到 1.0，当前=1.0 恢复上次非 1.0 速度
-    if (key == LogicalKeyboardKey.keyX) {
-      if (event is KeyDownEvent && !plPlayerController.isLive && hasPlayer) {
-        final currentTenths = (plPlayerController.playbackSpeed * 10).round();
-        final lastTenths = (plPlayerController.lastPlaybackSpeed * 10).round();
-        final targetTenths = currentTenths != 10
-            ? 10
-            : (lastTenths != 10 ? lastTenths : 20);
-        final target = targetTenths / 10.0;
-        plPlayerController
-          ..setPlaybackSpeed(target)
-          ..showKeyboardSpeedToast(target);
+    // X/C 倍速加减（X 减速、C 加速），支持长按持续调节（每 100ms 步进 0.1x）
+    if (key == LogicalKeyboardKey.keyX || key == LogicalKeyboardKey.keyC) {
+      if (!plPlayerController.isLive && hasPlayer) {
+        _updateSpeed(event, isIncrease: key == LogicalKeyboardKey.keyC);
       }
       return true;
     }
