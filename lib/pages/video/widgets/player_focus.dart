@@ -172,24 +172,27 @@ class PlayerFocus extends StatelessWidget {
               ? 10
               : (lastTenths != 10 ? lastTenths : 20);  // 初始状态无历史切到 2.0
           final target = targetTenths / 10.0;
-          plPlayerController.setPlaybackSpeed(target);
-          SmartDialog.showToast('${target.toStringAsFixed(1)}x播放');
+          plPlayerController
+            ..setPlaybackSpeed(target)
+            ..showKeyboardSpeedToast(target);
           return true;
         }
         if (key == LogicalKeyboardKey.keyX) {
           // X：减速 0.1x，下限 0.1x
           final tenths = (plPlayerController.playbackSpeed * 10).round();
-          final newSpeed = (tenths - 1).clamp(1, 40) / 10.0;
-          plPlayerController.setPlaybackSpeed(newSpeed);
-          SmartDialog.showToast('${newSpeed.toStringAsFixed(1)}x播放');
+          final newSpeed = (tenths - 1).clamp(1, 160) / 10.0;
+          plPlayerController
+            ..setPlaybackSpeed(newSpeed)
+            ..showKeyboardSpeedToast(newSpeed);
           return true;
         }
         if (key == LogicalKeyboardKey.keyC) {
-          // C：加速 0.1x，上限 4.0x
+          // C：加速 0.1x，上限 16.0x（参考 PotPlayer / Global Speed 默认上限）
           final tenths = (plPlayerController.playbackSpeed * 10).round();
-          final newSpeed = (tenths + 1).clamp(1, 40) / 10.0;
-          plPlayerController.setPlaybackSpeed(newSpeed);
-          SmartDialog.showToast('${newSpeed.toStringAsFixed(1)}x播放');
+          final newSpeed = (tenths + 1).clamp(1, 160) / 10.0;
+          plPlayerController
+            ..setPlaybackSpeed(newSpeed)
+            ..showKeyboardSpeedToast(newSpeed);
           return true;
         }
       }
