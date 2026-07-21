@@ -161,6 +161,39 @@ class PlayerFocus extends StatelessWidget {
         return true;
       }
 
+      // Z/X/C 快捷键调节播放倍速（步进 0.1x，实现 #211）
+      if (!plPlayerController.isLive && hasPlayer) {
+        if (key == LogicalKeyboardKey.keyZ) {
+          // Z：切换倍速。当前速度≠1.0 时切到 1.0，当前=1.0 时恢复上次非 1.0 速度
+          // 使用整数十份位运算避免浮点精度累积误差
+          final currentTenths = (plPlayerController.playbackSpeed * 10).round();
+          final lastTenths = (plPlayerController.lastPlaybackSpeed * 10).round();
+          final targetTenths = currentTenths != 10
+              ? 10
+              : (lastTenths != 10 ? lastTenths : 20);  // 初始状态无历史切到 2.0
+          final target = targetTenths / 10.0;
+          plPlayerController.setPlaybackSpeed(target);
+          SmartDialog.showToast('${target.toStringAsFixed(1)}x播放');
+          return true;
+        }
+        if (key == LogicalKeyboardKey.keyX) {
+          // X：减速 0.1x，下限 0.1x
+          final tenths = (plPlayerController.playbackSpeed * 10).round();
+          final newSpeed = (tenths - 1).clamp(1, 40) / 10.0;
+          plPlayerController.setPlaybackSpeed(newSpeed);
+          SmartDialog.showToast('${newSpeed.toStringAsFixed(1)}x播放');
+          return true;
+        }
+        if (key == LogicalKeyboardKey.keyC) {
+          // C：加速 0.1x，上限 4.0x
+          final tenths = (plPlayerController.playbackSpeed * 10).round();
+          final newSpeed = (tenths + 1).clamp(1, 40) / 10.0;
+          plPlayerController.setPlaybackSpeed(newSpeed);
+          SmartDialog.showToast('${newSpeed.toStringAsFixed(1)}x播放');
+          return true;
+        }
+      }
+
       switch (key) {
         case LogicalKeyboardKey.space:
           if (plPlayerController.isLive || canPlay!()) {
