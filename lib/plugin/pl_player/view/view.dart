@@ -1581,20 +1581,20 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
               alignment: const Alignment(0, 0.65),
               child: IgnorePointer(
                 ignoring: true,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: const BoxDecoration(
-                    color: Color(0x88000000),
-                    borderRadius: BorderRadius.all(Radius.circular(16)),
-                  ),
-                  child: Text(
-                    plPlayerController.keyboardSpeedToast.value > 0
-                        ? '${plPlayerController.keyboardSpeedToast.value.toStringAsFixed(1)}x播放'
-                        : '',
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: Color(0x88000000),
+                      borderRadius: BorderRadius.all(Radius.circular(16)),
+                    ),
+                    child: Text(
+                      plPlayerController.keyboardSpeedToast.value > 0
+                          ? '${plPlayerController.keyboardSpeedToast.value.toStringAsFixed(1)}x'
+                          : '',
+                      style: const TextStyle(color: Colors.white, fontSize: 20),
                   ),
                 ),
               ),
