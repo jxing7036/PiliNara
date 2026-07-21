@@ -1591,7 +1591,9 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
                     borderRadius: BorderRadius.all(Radius.circular(16)),
                   ),
                   child: Text(
-                    '${plPlayerController.keyboardSpeedToast.value.toStringAsFixed(1)}x播放',
+                    plPlayerController.keyboardSpeedToast.value > 0
+                        ? '${plPlayerController.keyboardSpeedToast.value.toStringAsFixed(1)}x播放'
+                        : '',
                     style: const TextStyle(color: Colors.white, fontSize: 13),
                   ),
                 ),

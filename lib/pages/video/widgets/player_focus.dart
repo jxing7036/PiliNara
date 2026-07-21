@@ -98,16 +98,22 @@ class PlayerFocus extends StatelessWidget {
       ..showKeyboardSpeedToast(newSpeed);
   }
 
-  /// Z/C 长按：按下时步进一次并启动定时器（每 100ms 步进），松开取消
+  /// Z/C 长按：按下步进一次，300ms 延迟后持续步进（每 100ms），松开取消
   void _updateSpeed(KeyEvent event, {required bool isIncrease}) {
     if (event is KeyDownEvent) {
       if (hasPlayer) {
         _changeSpeed(isIncrease: isIncrease);
+        // 300ms 防误触阈值，过后才开始连续步进
         plPlayerController
           ..longPressTimer?.cancel()
-          ..longPressTimer = Timer.periodic(
-            const Duration(milliseconds: 100),
-            (_) => _changeSpeed(isIncrease: isIncrease),
+          ..longPressTimer = Timer(
+            const Duration(milliseconds: 300),
+            () => plPlayerController
+              ..cancelLongPressTimer()
+              ..longPressTimer = Timer.periodic(
+                const Duration(milliseconds: 100),
+                (_) => _changeSpeed(isIncrease: isIncrease),
+              ),
           );
       }
     } else if (event is KeyUpEvent) {
@@ -153,6 +159,22 @@ class PlayerFocus extends StatelessWidget {
     if (isKeyZ || key == LogicalKeyboardKey.keyC) {
       if (!plPlayerController.isLive && hasPlayer) {
         _updateSpeed(event, isIncrease: key == LogicalKeyboardKey.keyC);
+      }
+      return true;
+    }
+
+    // X：切换倍速。当前速度≠1.0 切到 1.0，当前=1.0 恢复上次非 1.0 速度
+    if (key == LogicalKeyboardKey.keyX) {
+      if (event is KeyDownEvent && !plPlayerController.isLive && hasPlayer) {
+        final currentTenths = (plPlayerController.playbackSpeed * 10).round();
+        final lastTenths = (plPlayerController.lastPlaybackSpeed * 10).round();
+        final targetTenths = currentTenths != 10
+            ? 10
+            : (lastTenths != 10 ? lastTenths : 20);
+        final target = targetTenths / 10.0;
+        plPlayerController
+          ..setPlaybackSpeed(target)
+          ..showKeyboardSpeedToast(target);
       }
       return true;
     }
