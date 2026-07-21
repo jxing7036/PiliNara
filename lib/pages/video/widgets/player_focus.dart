@@ -86,6 +86,35 @@ class PlayerFocus extends StatelessWidget {
     }
   }
 
+  /// 单次倍速步进（0.1x），使用整数十份位运算避免浮点精度累积误差
+  void _changeSpeed({required bool isIncrease}) {
+    final tenths = (plPlayerController.playbackSpeed * 10).round();
+    final newTenths = isIncrease
+        ? (tenths + 1).clamp(1, 160)
+        : (tenths - 1).clamp(1, 160);
+    final newSpeed = newTenths / 10.0;
+    plPlayerController
+      ..setPlaybackSpeed(newSpeed)
+      ..showKeyboardSpeedToast(newSpeed);
+  }
+
+  /// Z/C 长按：按下时步进一次并启动定时器（每 100ms 步进），松开取消
+  void _updateSpeed(KeyEvent event, {required bool isIncrease}) {
+    if (event is KeyDownEvent) {
+      if (hasPlayer) {
+        _changeSpeed(isIncrease: isIncrease);
+        plPlayerController
+          ..longPressTimer?.cancel()
+          ..longPressTimer = Timer.periodic(
+            const Duration(milliseconds: 100),
+            (_) => _changeSpeed(isIncrease: isIncrease),
+          );
+      }
+    } else if (event is KeyUpEvent) {
+      plPlayerController.cancelLongPressTimer();
+    }
+  }
+
   bool _handleKey(KeyEvent event) {
     final key = event.logicalKey;
 
@@ -116,6 +145,15 @@ class PlayerFocus extends StatelessWidget {
     final isArrowUp = key == LogicalKeyboardKey.arrowUp;
     if (isArrowUp || key == LogicalKeyboardKey.arrowDown) {
       _updateVolume(event, isIncrease: isArrowUp);
+      return true;
+    }
+
+    // Z/C 倍速快捷键（Z 减速、C 加速），支持长按持续调节（每 100ms 步进 0.1x）
+    final isKeyZ = key == LogicalKeyboardKey.keyZ;
+    if (isKeyZ || key == LogicalKeyboardKey.keyC) {
+      if (!plPlayerController.isLive && hasPlayer) {
+        _updateSpeed(event, isIncrease: key == LogicalKeyboardKey.keyC);
+      }
       return true;
     }
 
@@ -159,42 +197,6 @@ class PlayerFocus extends StatelessWidget {
           SmartDialog.showToast('${speed}x播放');
         }
         return true;
-      }
-
-      // Z/X/C 快捷键调节播放倍速（步进 0.1x，实现 #211）
-      if (!plPlayerController.isLive && hasPlayer) {
-        if (key == LogicalKeyboardKey.keyZ) {
-          // Z：切换倍速。当前速度≠1.0 时切到 1.0，当前=1.0 时恢复上次非 1.0 速度
-          // 使用整数十份位运算避免浮点精度累积误差
-          final currentTenths = (plPlayerController.playbackSpeed * 10).round();
-          final lastTenths = (plPlayerController.lastPlaybackSpeed * 10).round();
-          final targetTenths = currentTenths != 10
-              ? 10
-              : (lastTenths != 10 ? lastTenths : 20);  // 初始状态无历史切到 2.0
-          final target = targetTenths / 10.0;
-          plPlayerController
-            ..setPlaybackSpeed(target)
-            ..showKeyboardSpeedToast(target);
-          return true;
-        }
-        if (key == LogicalKeyboardKey.keyX) {
-          // X：减速 0.1x，下限 0.1x
-          final tenths = (plPlayerController.playbackSpeed * 10).round();
-          final newSpeed = (tenths - 1).clamp(1, 160) / 10.0;
-          plPlayerController
-            ..setPlaybackSpeed(newSpeed)
-            ..showKeyboardSpeedToast(newSpeed);
-          return true;
-        }
-        if (key == LogicalKeyboardKey.keyC) {
-          // C：加速 0.1x，上限 16.0x（参考 PotPlayer / Global Speed 默认上限）
-          final tenths = (plPlayerController.playbackSpeed * 10).round();
-          final newSpeed = (tenths + 1).clamp(1, 160) / 10.0;
-          plPlayerController
-            ..setPlaybackSpeed(newSpeed)
-            ..showKeyboardSpeedToast(newSpeed);
-          return true;
-        }
       }
 
       switch (key) {
