@@ -1885,6 +1885,7 @@ class PlPlayerController with BlockConfigMixin {
       AndroidHelper$ToDart.onUserLeaveHint = null;
     }
     _timer?.cancel();
+    _keyboardSpeedTimer?.cancel();
     // _position.close();
     // _playerEventSubs?.cancel();
     // _sliderPosition.close();
