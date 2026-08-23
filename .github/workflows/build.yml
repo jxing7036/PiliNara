@@ -1,6 +1,6 @@
 # PiliNara Z/X/C 倍速快捷键 —— GitHub Actions 自动构建
 # 复刻 run.ps1 的完整流程：拉取官方最新源码 -> 应用补丁 -> 编译 Windows exe -> 上传产物
-# 以后官方更新，跑一次本 Action（或等每日定时）即可拿到带快捷键的最新版。
+# 仅手动触发：Actions 页面点 Run workflow 即可构建最新版。
 
 name: Build PiliNara (Z/X/C hotkey)
 
@@ -12,10 +12,7 @@ on:
         required: false
         default: false
         type: boolean
-  schedule:
-    - cron: "0 20 * * *"
-  push:
-    branches: [main, master]
+
 
 jobs:
   build-windows:

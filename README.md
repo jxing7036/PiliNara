@@ -22,9 +22,7 @@
 
 把本仓库推到 GitHub 后，内置的 `.github/workflows/build.yml` 会自动完成全部流程：
 
-1. 手动：**Actions** 页 → **Build PiliNara (Z/X/C hotkey)** → **Run workflow**
-2. 定时：每天 04:00（北京时间）自动重新构建，官方更新后自动拿到最新版
-3. push 到 main：自动构建
+手动触发：**Actions** 页 → **Build PiliNara (Z/X/C hotkey)** → **Run workflow**（每次跑都会拉取官方最新源码再构建）
 
 产物在运行页的 **Artifacts**（`pilinara_zxc_windows_x64.zip`，便携版，解压即用）。
 勾选 `create_release` 后还会发布到 GitHub Release 的 `nightly` 预发布。
