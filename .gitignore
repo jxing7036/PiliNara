@@ -1,0 +1,5 @@
+# 本地构建产物/源码缓存，不上传
+PiliPlus-source/
+release/
+.cache/
+build/
