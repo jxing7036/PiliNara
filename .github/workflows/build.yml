@@ -35,13 +35,14 @@ jobs:
         shell: pwsh
         working-directory: PiliNara-source
         run: |
+          $ErrorActionPreference = 'Continue'
           $patch = "$env:GITHUB_WORKSPACE/pilinara_zxc_speed_hotkey.patch"
           if (-not (Test-Path -LiteralPath $patch)) { throw "找不到补丁文件: $patch" }
           $applied = $false
           try {
-            git apply --check $patch
+            git apply --check $patch 2>$null
             if ($LASTEXITCODE -eq 0) {
-              git apply $patch
+              git apply $patch 2>$null
               if ($LASTEXITCODE -eq 0) { $applied = $true }
             }
           } catch { }
@@ -58,6 +59,7 @@ jobs:
             }
           }
           Write-Host "[OK] 补丁已应用"
+          exit 0
 
       - name: Setup Flutter (3.47.0, 见官方 .fvmrc)
         uses: subosito/flutter-action@v2
