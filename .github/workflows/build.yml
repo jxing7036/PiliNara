@@ -68,24 +68,10 @@ jobs:
           flutter-version-file: PiliNara-source/pubspec.yaml
           cache: true
 
-      - name: Fix official SDK patch format + Apply official SDK patches
+      - name: Apply official SDK patches (与官方 CI 一致，直接跑 patch.ps1)
         shell: pwsh
         working-directory: PiliNara-source
         run: |
-          Get-ChildItem -Path 'lib/scripts' -Filter '*.patch' | ForEach-Object {
-            $ptext = [System.IO.File]::ReadAllText($_.FullName)
-            $pnl = if ($ptext.Contains([string][char]13)) { [string][char]13 + [string][char]10 } else { [string][char]10 }
-            $plines = $ptext -split "[\r\n]+"
-            $inHunk = $false
-            for ($pi = 0; $pi -lt $plines.Length; $pi++) {
-              $pl = $plines[$pi]
-              if ($pl -match '^@@') { $inHunk = $true; continue }
-              if ($pl -match '^diff --git') { $inHunk = $false }
-              if ($inHunk -and $pl.Length -eq 0) { $plines[$pi] = ' ' }
-            }
-            [System.IO.File]::WriteAllText($_.FullName, ($plines -join $pnl), (New-Object System.Text.UTF8Encoding($false)))
-          }
-          Write-Host "  已修复官方 SDK 补丁格式..."
           $env:FLUTTER_ROOT = Split-Path -Parent (Split-Path -Parent (Get-Command flutter).Source)
           $env:GITHUB_WORKSPACE = (Get-Location).Path
           & powershell -NoProfile -ExecutionPolicy Bypass -File 'lib\scripts\patch.ps1' windows
