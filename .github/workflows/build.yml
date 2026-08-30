@@ -46,21 +46,39 @@ jobs:
               if ($LASTEXITCODE -eq 0) { $applied = $true }
             }
           } catch { }
+
           if (-not $applied) {
-            Write-Host "git apply 未成功（官方可能改过这 3 个文件），改用直接覆盖..."
-            $files = @(
+            Write-Host 'git apply 未成功（官方改过这 3 个文件），尝试 3 路合并重新生成...'
+            $targets = @(
               'lib/pages/video/widgets/player_focus.dart',
               'lib/plugin/pl_player/controller.dart',
               'lib/plugin/pl_player/view/view.dart'
             )
-            foreach ($f in $files) {
-              Copy-Item "$env:GITHUB_WORKSPACE/files/$f" $f -Force
-              Write-Host "  已覆盖 $f"
+            $conflict = $false
+            foreach ($f in $targets) {
+              $base   = "$env:GITHUB_WORKSPACE/patch-base/$f"
+              $ours   = "$env:GITHUB_WORKSPACE/files/$f"
+              $theirs = (Join-Path (Get-Location) $f)
+              if (-not (Test-Path -LiteralPath $base))   { throw "缺少合并基线: $base" }
+              if (-not (Test-Path -LiteralPath $ours))   { throw "缺少改动文件: $ours" }
+              if (-not (Test-Path -LiteralPath $theirs)) { throw "官方文件路径已变化: $theirs" }
+              git merge-file "$theirs" "$base" "$ours" 2>$null
+              if ($LASTEXITCODE -eq 0) {
+                Write-Host "  已合并: $f"
+              } else {
+                Write-Host "  冲突: $f（官方改动与快捷键改动重叠，需人工合并）"
+                $conflict = $true
+              }
+            }
+            if ($conflict) {
+              Write-Host ''
+              Write-Host '构建中止：有合并冲突，无法自动重新生成补丁。'
+              Write-Host '请人工把 files/ 与 patch-base/ 更新到新官方版本并解决冲突后重试。'
+              throw '3 路合并存在冲突，需手动更新补丁'
             }
           }
-          Write-Host "[OK] 补丁已应用"
+          Write-Host '[OK] 补丁已应用（git apply 或 3 路合并）'
           exit 0
-
       - name: Setup Flutter (自动读取官方 pubspec.yaml 要求的版本)
         uses: subosito/flutter-action@v2
         with:
