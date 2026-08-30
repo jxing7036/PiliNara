@@ -8,11 +8,10 @@ import 'package:PiliPlus/plugin/pl_player/controller.dart';
 import 'package:PiliPlus/utils/platform_utils.dart';
 import 'package:PiliPlus/utils/storage.dart';
 import 'package:PiliPlus/utils/storage_key.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show KeyDownEvent, KeyUpEvent, LogicalKeyboardKey, HardwareKeyboard;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
-import 'package:get/get.dart';
+import 'package:material_ui/material_ui.dart';
 
 class PlayerFocus extends StatelessWidget {
   const PlayerFocus({
@@ -52,7 +51,7 @@ class PlayerFocus extends StatelessWidget {
       focusNode: focusNode,
       autofocus: true,
       onKeyEvent: (node, event) {
-        final handled = _handleKey(event);
+        final handled = _handleKey(context, event);
         if (handled || _shouldHandle(event.logicalKey)) {
           return KeyEventResult.handled;
         }
@@ -91,6 +90,7 @@ class PlayerFocus extends StatelessWidget {
     }
   }
 
+
   /// 单次倍速步进（0.1x），使用整数十份位运算避免浮点精度累积误差
   void _changeSpeed({required bool isIncrease}) {
     final tenths = (plPlayerController.playbackSpeed * 10).round();
@@ -108,7 +108,6 @@ class PlayerFocus extends StatelessWidget {
     if (event is KeyDownEvent) {
       if (hasPlayer) {
         _changeSpeed(isIncrease: isIncrease);
-        // 300ms 防误触阈值，过后才开始连续步进
         plPlayerController
           ..longPressTimer?.cancel()
           ..longPressTimer = Timer(
@@ -126,7 +125,7 @@ class PlayerFocus extends StatelessWidget {
     }
   }
 
-  bool _handleKey(KeyEvent event) {
+  bool _handleKey(BuildContext context, KeyEvent event) {
     final key = event.logicalKey;
 
     final isKeyQ = key == LogicalKeyboardKey.keyQ;
@@ -158,6 +157,7 @@ class PlayerFocus extends StatelessWidget {
       _updateVolume(event, isIncrease: isArrowUp);
       return true;
     }
+
 
     // Z：恢复 1.0x 倍速（同时取消 X/C 长按定时器，防止后续 tick 改回去）
     if (key == LogicalKeyboardKey.keyZ) {
@@ -323,7 +323,7 @@ class PlayerFocus extends StatelessWidget {
 
           case LogicalKeyboardKey.keyG:
             if (introController case final UgcIntroController ugcCtr) {
-              ugcCtr.actionRelationMod(Get.context!);
+              ugcCtr.actionRelationMod(context);
             }
             return true;
 

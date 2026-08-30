@@ -1,11 +1,12 @@
 diff --git a/lib/pages/video/widgets/player_focus.dart b/lib/pages/video/widgets/player_focus.dart
-index 2e65d8c25..5bebc0048 100644
+index fc65205..4c1ff81 100644
 --- a/lib/pages/video/widgets/player_focus.dart
 +++ b/lib/pages/video/widgets/player_focus.dart
-@@ -91,6 +91,41 @@ class PlayerFocus extends StatelessWidget {
+@@ -90,6 +90,41 @@ class PlayerFocus extends StatelessWidget {
      }
    }
  
++
 +  /// 单次倍速步进（0.1x），使用整数十份位运算避免浮点精度累积误差
 +  void _changeSpeed({required bool isIncrease}) {
 +    final tenths = (plPlayerController.playbackSpeed * 10).round();
@@ -23,7 +24,6 @@ index 2e65d8c25..5bebc0048 100644
 +    if (event is KeyDownEvent) {
 +      if (hasPlayer) {
 +        _changeSpeed(isIncrease: isIncrease);
-+        // 300ms 防误触阈值，过后才开始连续步进
 +        plPlayerController
 +          ..longPressTimer?.cancel()
 +          ..longPressTimer = Timer(
@@ -41,13 +41,14 @@ index 2e65d8c25..5bebc0048 100644
 +    }
 +  }
 +
-   bool _handleKey(KeyEvent event) {
+   bool _handleKey(BuildContext context, KeyEvent event) {
      final key = event.logicalKey;
  
-@@ -124,6 +159,25 @@ class PlayerFocus extends StatelessWidget {
+@@ -123,6 +158,26 @@ class PlayerFocus extends StatelessWidget {
        return true;
      }
  
++
 +    // Z：恢复 1.0x 倍速（同时取消 X/C 长按定时器，防止后续 tick 改回去）
 +    if (key == LogicalKeyboardKey.keyZ) {
 +      if (event is KeyDownEvent && !plPlayerController.isLive && hasPlayer) {
@@ -71,7 +72,7 @@ index 2e65d8c25..5bebc0048 100644
        if (!plPlayerController.isLive) {
          if (event is KeyDownEvent) {
 diff --git a/lib/plugin/pl_player/controller.dart b/lib/plugin/pl_player/controller.dart
-index 28887b9bb..2e0674718 100644
+index 640564a..c3d9aea 100644
 --- a/lib/plugin/pl_player/controller.dart
 +++ b/lib/plugin/pl_player/controller.dart
 @@ -109,6 +109,17 @@ class PlPlayerController with BlockConfigMixin {
@@ -92,7 +93,7 @@ index 28887b9bb..2e0674718 100644
    final RxDouble volume = RxDouble(
      PlatformUtils.isDesktop ? Pref.desktopVolume : 1.0,
    );
-@@ -2005,6 +2016,7 @@ class PlPlayerController with BlockConfigMixin {
+@@ -2009,6 +2020,7 @@ class PlPlayerController with BlockConfigMixin {
      speedLocked = false;
      _speedLockArmed = false;
      speedLockHint.value = SpeedLockHint.none;
@@ -100,7 +101,7 @@ index 28887b9bb..2e0674718 100644
      _cancelSubForSeek();
      if (!_isCloseAll && _playerCount > 1) {
        _playerCount -= 1;
-@@ -2030,6 +2042,7 @@ class PlPlayerController with BlockConfigMixin {
+@@ -2034,6 +2046,7 @@ class PlPlayerController with BlockConfigMixin {
        AndroidHelper$ToDart.onUserLeaveHint = null;
      }
      _timer?.cancel();
@@ -109,10 +110,10 @@ index 28887b9bb..2e0674718 100644
      // _playerEventSubs?.cancel();
      // _sliderPosition.close();
 diff --git a/lib/plugin/pl_player/view/view.dart b/lib/plugin/pl_player/view/view.dart
-index 540ae8966..7030c005a 100644
+index 367d43c..ad69f39 100644
 --- a/lib/plugin/pl_player/view/view.dart
 +++ b/lib/plugin/pl_player/view/view.dart
-@@ -1711,6 +1711,37 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
+@@ -1714,6 +1714,37 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
              ),
            ),
  

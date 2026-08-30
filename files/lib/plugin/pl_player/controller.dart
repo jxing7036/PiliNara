@@ -57,12 +57,12 @@ import 'package:archive/archive.dart' show getCrc32;
 import 'package:canvas_danmaku/canvas_danmaku.dart';
 import 'package:easy_debounce/easy_throttle.dart';
 import 'package:flutter/foundation.dart' show clampDouble, kDebugMode;
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback, DeviceOrientation;
 import 'package:flutter_smart_dialog/flutter_smart_dialog.dart';
 import 'package:flutter_volume_controller/flutter_volume_controller.dart';
 import 'package:get/get.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:native_device_orientation/native_device_orientation.dart';
@@ -327,8 +327,7 @@ class PlPlayerController with BlockConfigMixin {
   }
 
   void enterPip({bool autoEnter = false}) {
-    if (videoPlayerController != null) {
-      final state = videoPlayerController!.state;
+    if (videoPlayerController case NativePlayer(:final state)) {
       PageUtils.enterPip(
         autoEnter: autoEnter,
         width: state.width == 0 ? width : state.width,
@@ -971,11 +970,8 @@ class PlPlayerController with BlockConfigMixin {
     return player;
   }
 
-  Map<String, String>? _buffer;
-  Map<String, String> get buffer =>
-      _buffer ??= Pref.initBuffer(_playbackSpeed.value);
-  Map<String, String>? _liveBuffer;
-  Map<String, String> get liveBuffer => _liveBuffer ??= Pref.initLiveBuffer();
+  late final buffer = Pref.initBuffer(_playbackSpeed.value);
+  late final liveBuffer = Pref.initLiveBuffer();
 
   // 配置播放器
   Future<void> _createVideoController(
@@ -1006,17 +1002,14 @@ class PlPlayerController with BlockConfigMixin {
       }
     }
 
-    final Map<String, String> extras = {};
-
-    if (dataSource is FileSource) {
-      extras['cache'] = 'no';
-    } else {
-      if (isLive) {
-        extras.addAll(liveBuffer);
-      } else {
-        extras.addAll(buffer);
-      }
-    }
+    final Map<String, String> extras = {
+      if (dataSource is FileSource)
+        'cache': 'no'
+      else if (isLive)
+        ...liveBuffer
+      else
+        ...buffer,
+    };
 
     String video = dataSource.videoSource;
     if (dataSource.audioSource case final audio? when (audio.isNotEmpty)) {
@@ -1026,10 +1019,10 @@ class PlPlayerController with BlockConfigMixin {
         // dely_open need provide length
         video =
             ('edl://'
-            '!no_clip;!no_chapters;'
+            '!no_chapters;'
             // '!delay_open,media_type=video;'
             '%${isFileSource ? utf8.encode(video).length : video.length}%$video;'
-            '!new_stream;!no_clip;!no_chapters;'
+            '!new_stream;!no_chapters;'
             // '!delay_open,media_type=audio;'
             '%${isFileSource ? utf8.encode(audio).length : audio.length}%$audio');
       }
@@ -1199,7 +1192,10 @@ class PlPlayerController with BlockConfigMixin {
       if (kDebugMode)
         stream.log.listen(((PlayerLog log) {
           if (log.level == 'error' || log.level == 'fatal') {
-            Utils.reportError('${log.level}: ${log.prefix}: ${log.text}', null);
+            Utils.reportError(
+              '${log.level}: ${log.prefix}: ${log.text}\n${player.state.playlist}',
+              null,
+            );
           } else {
             debugPrint(log.toString());
           }
@@ -1257,7 +1253,9 @@ class PlPlayerController with BlockConfigMixin {
               event.startsWith("Can not open")) {
             return;
           }
-          Utils.reportError(event);
+          if (!kDebugMode) {
+            Utils.reportError('$event\n${player.state.playlist}');
+          }
           // SmartDialog.showToast('视频加载错误, $event');
         }
       }),
@@ -1359,6 +1357,13 @@ class PlPlayerController with BlockConfigMixin {
     return showControls;
   }
 
+  /// 底层播放：申请音频焦点 + 启动播放，不含 UI 副作用
+  Future<void> _rawPlay() async {
+    await _videoPlayerController?.play();
+    audioSessionHandler?.setActive(true);
+    playerStatus.value = PlayerStatus.playing;
+  }
+
   /// 播放视频
   Future<void> play({bool repeat = false, bool hideControls = true}) async {
     if (_playerCount == 0) return;
@@ -1371,11 +1376,7 @@ class PlPlayerController with BlockConfigMixin {
       await seekTo(Duration.zero, isSeek: false);
     }
 
-    await _videoPlayerController?.play();
-
-    audioSessionHandler?.setActive(true);
-
-    playerStatus.value = PlayerStatus.playing;
+    await _rawPlay();
     // screenManager.setOverlays(false);
   }
 
@@ -1743,9 +1744,11 @@ class PlPlayerController with BlockConfigMixin {
   Future<void> onDoubleTapCenter() async {
     if (!isLive && isCompleted) {
       await videoPlayerController!.seek(Duration.zero);
-      videoPlayerController!.play();
+      await _rawPlay();
+    } else if (videoPlayerController!.state.playing) {
+      await pause();
     } else {
-      videoPlayerController!.playOrPause();
+      await _rawPlay();
     }
   }
 
@@ -2004,6 +2007,7 @@ class PlPlayerController with BlockConfigMixin {
 
   void onCloseAll() {
     _isCloseAll = true;
+    if (PlatformUtils.isDesktop) exitDesktopFullScreen();
     dispose();
     Get.until((route) => route.isFirst);
   }
@@ -2093,11 +2097,6 @@ class PlPlayerController with BlockConfigMixin {
         continuePlayInBackground.value,
       );
     }
-  }
-
-  void setOnlyPlayAudio() {
-    onlyPlayAudio.toggle();
-    videoPlayerController?.setVideoTrack(onlyPlayAudio.value ? .no() : .auto());
   }
 
   late final Map<String, ui.Image?> previewCache = {};
@@ -2292,6 +2291,8 @@ class PlPlayerController with BlockConfigMixin {
                 bytes: bytes.buffer.asUint8List(),
                 fileName: 'screenshot_${cid}_$time',
               );
+            } else {
+              SmartDialog.showToast('保存失败');
             }
             Get.back();
           },
