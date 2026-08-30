@@ -86,10 +86,19 @@ jobs:
           flutter-version-file: PiliNara-source/pubspec.yaml
           cache: true
 
-      - name: Apply official SDK patches (与官方 CI 一致，直接跑 patch.ps1)
+      - name: Apply official SDK patches (先统一补丁行尾为 LF，再跑 patch.ps1)
         shell: pwsh
         working-directory: PiliNara-source
         run: |
+          # 官方补丁是 CRLF，而 flutter SDK 的 .dart 被其 .gitattributes 强制为 LF，
+          # 行尾不一致会导致 git apply 失败。先把补丁统一转成 LF。
+          Get-ChildItem -Path 'lib/scripts' -Filter '*.patch' | ForEach-Object {
+            $t = [System.IO.File]::ReadAllText($_.FullName)
+            $t = $t.Replace([string][char]13 + [string][char]10, [string][char]10)
+            [System.IO.File]::WriteAllText($_.FullName, $t, (New-Object System.Text.UTF8Encoding($false)))
+          }
+          Write-Host '  已统一官方 SDK 补丁行尾为 LF...'
+
           $env:FLUTTER_ROOT = Split-Path -Parent (Split-Path -Parent (Get-Command flutter).Source)
           $env:GITHUB_WORKSPACE = (Get-Location).Path
           & powershell -NoProfile -ExecutionPolicy Bypass -File 'lib\scripts\patch.ps1' windows
