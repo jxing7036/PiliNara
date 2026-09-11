@@ -72,10 +72,10 @@ index fc65205..4c1ff81 100644
        if (!plPlayerController.isLive) {
          if (event is KeyDownEvent) {
 diff --git a/lib/plugin/pl_player/controller.dart b/lib/plugin/pl_player/controller.dart
-index 640564a..c3d9aea 100644
+index 49e22fd..03f64a8 100644
 --- a/lib/plugin/pl_player/controller.dart
 +++ b/lib/plugin/pl_player/controller.dart
-@@ -109,6 +109,17 @@ class PlPlayerController with BlockConfigMixin {
+@@ -113,6 +113,17 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
    final RxDouble _playbackSpeed = Pref.playSpeedDefault.obs;
    late final RxDouble _longPressSpeed = Pref.longPressSpeedDefault.obs;
  
@@ -93,7 +93,7 @@ index 640564a..c3d9aea 100644
    final RxDouble volume = RxDouble(
      PlatformUtils.isDesktop ? Pref.desktopVolume : 1.0,
    );
-@@ -2009,6 +2020,7 @@ class PlPlayerController with BlockConfigMixin {
+@@ -2465,6 +2476,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
      speedLocked = false;
      _speedLockArmed = false;
      speedLockHint.value = SpeedLockHint.none;
@@ -101,19 +101,19 @@ index 640564a..c3d9aea 100644
      _cancelSubForSeek();
      if (!_isCloseAll && _playerCount > 1) {
        _playerCount -= 1;
-@@ -2034,6 +2046,7 @@ class PlPlayerController with BlockConfigMixin {
-       AndroidHelper$ToDart.onUserLeaveHint = null;
+@@ -2491,6 +2503,7 @@ class PlPlayerController with BlockConfigMixin, AudioNormalizationMixin {
      }
      _timer?.cancel();
+     persistVideoPictureSettings();
 +    _keyboardSpeedTimer?.cancel();
      // _position.close();
      // _playerEventSubs?.cancel();
      // _sliderPosition.close();
 diff --git a/lib/plugin/pl_player/view/view.dart b/lib/plugin/pl_player/view/view.dart
-index 367d43c..ad69f39 100644
+index 20cbe39..dfc4350 100644
 --- a/lib/plugin/pl_player/view/view.dart
 +++ b/lib/plugin/pl_player/view/view.dart
-@@ -1714,6 +1714,37 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
+@@ -1707,6 +1707,37 @@ class _PLVideoPlayerState extends State<PLVideoPlayer>
              ),
            ),
  
