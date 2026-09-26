@@ -40,6 +40,13 @@ Future<VideoPlayerServiceHandler> initAudioService() {
   );
 }
 
+typedef _StatusConfig = (
+  PlayerStatus status,
+  bool isBuffering,
+  bool isLive,
+  double speed,
+);
+
 class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
   static final List<MediaItem> _item = [];
   bool enableBackgroundPlay = Pref.enableBackgroundPlay;
@@ -69,19 +76,13 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
       );
     }
     playbackState.add(
-      PlaybackState(
-        processingState: AudioProcessingState.idle,
-        playing: false,
-      ),
+      PlaybackState(processingState: AudioProcessingState.idle, playing: false),
     );
   }
 
-  void _clearCurrentSession({bool clearItems = true}) {
+  void _clearCurrentSession() {
     if (!mediaItem.isClosed) {
       mediaItem.add(null);
-    }
-    if (clearItems) {
-      _item.clear();
     }
     currentHeroTag = null;
     _clearCallbacks();
@@ -147,25 +148,20 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     return onPlay?.call() ??
         PlPlayerController.playIfExists() ??
         Future.syncValue(null);
-    // player.play();
   }
 
   @override
   Future<void> pause() {
-    return onPause?.call() ?? PlPlayerController.pauseIfExists();
-    // player.pause();
+    return onPause?.call() ??
+        PlPlayerController.pauseIfExists() ??
+        Future.syncValue(null);
   }
 
   @override
   Future<void> seek(Duration position) {
-    playbackState.add(
-      playbackState.value.copyWith(
-        updatePosition: position,
-      ),
-    );
-    return (onSeek?.call(position) ??
-        PlPlayerController.seekToIfExists(position, isSeek: false));
-    // await player.seekTo(position);
+    return onSeek?.call(position) ??
+        PlPlayerController.seekToIfExists(position, isSeek: false) ??
+        Future.syncValue(null);
   }
 
   void setMediaItem(MediaItem newMediaItem) {
@@ -205,81 +201,120 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     return false;
   }
 
-  void setPlaybackState(
+  Duration? _lastPos;
+  _StatusConfig? _lastConfig;
+  void onUpdateState(
     PlayerStatus status,
     bool isBuffering,
-    bool isLive,
-  ) {
-    if (!enableBackgroundPlay ||
-        _item.isEmpty ||
-        !PlPlayerController.instanceExists()) {
+    bool isLive, {
+    required Duration position,
+    required double speed,
+    String? debugLabel,
+  }) {
+    if (!enableBackgroundPlay || _item.isEmpty) {
       return;
     }
 
-    final AudioProcessingState processingState;
-    if (status.isCompleted) {
-      processingState = AudioProcessingState.completed;
-    } else if (isBuffering) {
-      processingState = AudioProcessingState.buffering;
-    } else {
-      processingState = AudioProcessingState.ready;
+    if (onPlay != null && debugLabel == 'onVideoPaused') return;
+
+    final newConfig = (status, isBuffering, isLive, speed);
+    if (_lastConfig == newConfig) {
+      if (_lastPos != null) {
+        final pos = position.inSeconds;
+        final lastPos = _lastPos!.inSeconds;
+        _lastPos = position;
+        if (pos == lastPos && pos != 0) return;
+      }
     }
+    _lastConfig = newConfig;
 
-    final playing = status.isPlaying;
+    final AudioProcessingState processingState;
+    final bool playing;
+    switch (status) {
+      case .completed:
+        playing = false;
+        processingState = .completed;
+      case .playing:
+        playing = true;
+        processingState = isBuffering ? .buffering : .ready;
+      case .paused:
+        playing = isBuffering;
+        processingState = isBuffering ? .buffering : .ready;
+    }
+    _updateState(
+      processingState,
+      playing,
+      isLive,
+      position: position,
+      speed: speed,
+    );
+  }
 
-    final hasEpisodes = _hasEpisodes();
+  void _updateState(
+    AudioProcessingState state,
+    bool playing,
+    bool isLive, {
+    required Duration position,
+    required double speed,
+  }) {
+    // 下游：非直播且有剧集（分P/合集/番剧/听视频列表）时才给上一集/下一集
+    final hasEpisodes = !isLive && _hasEpisodes();
 
     final controls = <MediaControl>[
-      if (!isLive && hasEpisodes) MediaControl.skipToPrevious,
-      MediaControl.rewind.copyWith(
-        androidIcon: 'drawable/ic_player_rewind_10s',
-      ),
+      if (hasEpisodes) MediaControl.skipToPrevious,
+      if (!isLive)
+        const MediaControl(
+          androidIcon: 'drawable/ic_player_rewind_10s',
+          label: 'Rewind',
+          action: .rewind,
+        ),
       if (playing)
-        MediaControl.pause.copyWith(
+        const MediaControl(
           androidIcon: 'drawable/ic_player_pause',
+          label: 'Pause',
+          action: .pause,
         )
       else
-        MediaControl.play.copyWith(
+        const MediaControl(
           androidIcon: 'drawable/ic_player_play',
+          label: 'Play',
+          action: .play,
         ),
-      MediaControl.fastForward.copyWith(
-        androidIcon: 'drawable/ic_player_fast_forward_10s',
-      ),
-      if (!isLive && hasEpisodes) MediaControl.skipToNext,
+      if (!isLive)
+        const MediaControl(
+          androidIcon: 'drawable/ic_player_fast_forward_10s',
+          label: 'Fast Forward',
+          action: .fastForward,
+        ),
+      if (hasEpisodes) MediaControl.skipToNext,
     ];
 
-    int playPauseIndex = controls.indexWhere(
+    // 下游：Android 紧凑通知只放三键，优先「上一集 / 播放暂停 / 下一集」
+    final playPauseIndex = controls.indexWhere(
       (c) => c.action == MediaAction.play || c.action == MediaAction.pause,
     );
-    List<int> compactIndices;
-    if (controls.length >= 3) {
-      if (playPauseIndex > 0 && playPauseIndex < controls.length - 1) {
-        compactIndices = [
-          playPauseIndex - 1,
-          playPauseIndex,
-          playPauseIndex + 1,
-        ];
-      } else {
-        compactIndices = [0, 1, 2];
-      }
-    } else {
-      compactIndices = List.generate(controls.length, (i) => i);
-    }
+    final compactIndices =
+        playPauseIndex > 0 && playPauseIndex < controls.length - 1
+        ? [playPauseIndex - 1, playPauseIndex, playPauseIndex + 1]
+        : List<int>.generate(
+            controls.length > 3 ? 3 : controls.length,
+            (i) => i,
+          );
 
     playbackState.add(
       playbackState.value.copyWith(
-        processingState: isBuffering
-            ? AudioProcessingState.buffering
-            : processingState,
+        processingState: state,
+        updatePosition: position,
+        speed: speed,
         controls: controls,
         androidCompactActionIndices: compactIndices,
         playing: playing,
         systemActions: {
           MediaAction.seek,
-          if (!isLive && hasEpisodes) MediaAction.skipToPrevious,
+          if (hasEpisodes) MediaAction.skipToPrevious,
           MediaAction.rewind,
           MediaAction.fastForward,
-          if (!isLive && hasEpisodes) MediaAction.skipToNext,
+          if (hasEpisodes) MediaAction.skipToNext,
         },
       ),
     );
@@ -292,13 +327,6 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
         playing,
       );
     }
-  }
-
-  void onStatusChange(PlayerStatus status, bool isBuffering, isLive) {
-    if (!enableBackgroundPlay) return;
-
-    if (_item.isEmpty) return;
-    setPlaybackState(status, isBuffering, isLive);
   }
 
   void onVideoDetailChange(
@@ -314,7 +342,6 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     //   debugPrint('当前调用栈为：');
     //   debugPrint(StackTrace.current);
     // }
-    if (!PlPlayerController.instanceExists()) return;
     if (data == null) return;
 
     // Windows SMTC 弹窗由 shell 进程渲染，仅支持系统内置解码器，WebP 会静默不显示，
@@ -402,6 +429,7 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     }
     // if (kDebugMode) debugPrint("exist: ${PlPlayerController.instanceExists()}");
     if (!PlPlayerController.instanceExists()) return;
+    // 下游：同一 herotag 的旧项按 id/后缀去重，避免切换分P时堆积
     _item
       ..removeWhere((item) => item.id == id || item.id.endsWith(herotag))
       ..add(mediaItem);
@@ -412,28 +440,43 @@ class VideoPlayerServiceHandler extends BaseAudioHandler with SeekHandler {
     if (!enableBackgroundPlay) return;
 
     _item.removeWhere((item) => item.id.endsWith(herotag));
+    // 下游：销毁的不是当前会话，不影响正在展示的媒体项
     if (currentHeroTag != herotag) {
       return;
     }
-    _clearCurrentSession(clearItems: false);
+    if (_item.isNotEmpty) {
+      // 上游：还有其它会话时回退到列表末项，而不是直接清空通知
+      setMediaItem(_item.last);
+      playbackState.add(
+        playbackState.value.copyWith(processingState: .ready, playing: false),
+      );
+      return;
+    }
+    _clearCurrentSession();
+  }
+
+  void clearIfNeeded() {
+    if (!enableBackgroundPlay) return;
+    if (_item.isEmpty) clear();
   }
 
   void clear() {
     if (!enableBackgroundPlay) return;
-    _clearCurrentSession();
-  }
-
-  void onPositionChange(Duration position) {
-    if (!enableBackgroundPlay ||
-        _item.isEmpty ||
-        !PlPlayerController.instanceExists()) {
-      return;
+    if (!mediaItem.isClosed) mediaItem.add(null);
+    _item.clear();
+    currentHeroTag = null;
+    _clearCallbacks();
+    _lastPos = null;
+    _lastConfig = null;
+    /**
+     * if (playbackState.processingState == AudioProcessingState.idle &&
+            previousState?.processingState != AudioProcessingState.idle) {
+          await AudioService._stop();
+        }
+     */
+    if (playbackState.value.processingState == .idle) {
+      playbackState.add(PlaybackState(processingState: .completed));
     }
-
-    playbackState.add(
-      playbackState.value.copyWith(
-        updatePosition: position,
-      ),
-    );
+    playbackState.add(PlaybackState(processingState: .idle));
   }
 }
